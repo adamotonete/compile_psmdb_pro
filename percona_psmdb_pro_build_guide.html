@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Test-Driving Percona Server for MongoDB “Pro” — DIY Build Guide</title>
+  <title>Test-Driving Percona Server for MongoDB Pro (FIPS, FCBIS, OIDC)</title>
   <style>
     :root {
       --bg: #0b1220;
@@ -113,16 +113,12 @@
   <div class="wrap">
     <header class="hero">
       <div class="kicker">Guide</div>
-      <h1>Test-Driving Percona Server for MongoDB “Pro” (FIPS, FCBIS, OIDC) — DIY Build Guide</h1>
+      <h1>Test-Driving Percona Server for MongoDB Pro (FIPS, FCBIS, OIDC)</h1>
       <p class="lede">
         Build Percona Server for MongoDB 8.0.12-4 from source inside an Oracle Linux 9 container, enabling FIPS, File-Copy-Based Initial Sync, and OpenID Connect.
         These features are free to use if you compile from source; Percona’s production support is paid.
       </p>
-      <figure class="hero">
-        <strong>Hero image placeholder.</strong> Replace with your blog header image.<br/>
-        <span class="small">Tip: Use a 1600×900 PNG/JPG and update the article template where appropriate.</span>
-      </figure>
-    </header>
+      </header>
 
     <section>
       <h2>What you’ll need</h2>
@@ -150,7 +146,7 @@ docker exec -it psmdb bash</code></pre>
       <h2>1) Install build dependencies</h2>
       <pre><code># Update metadata and install toolchains, libraries, and Python 3.11
 # (yum on OL9 is a wrapper for dnf; either works)
-yum install -y gcc-toolset-12 cmake curl git binutils-devel openssl-devel openldap-devel krb5-devel libcurl-devel cyrus-sasl-devel bzip2-devel zlib-devel lz4-devel xz-devel e2fsprogs-devel python3.11 python3.11-devel python3.11-pip python3.11-setuptools python3.11-wheel gcc gcc-c++
+yum install -y gcc-toolset-12 cmake curl git binutils-devel openssl-devel openldap-devel krb5-devel libcurl-devel cyrus-sasl-devel bzip2-devel zlib-devel lz4-devel xz-devel e2fsprogs-devel python3.11 python3.11-devel python3.11-pip python3.11-setuptools python3.11-wheel gcc gcc-c++ lld
 </code></pre>
 
       <p><strong>Check key tool locations:</strong></p>
@@ -207,12 +203,12 @@ echo '{"version": "8.0.12-4"}' > version.json
       <p>Poetry, scons, and related tooling live best in a clean venv.</p>
       <pre><code># Create a dedicated venv folder (name it anything you like)
 cd ~
-python3.11 -m venv p311 --prompt mongodb   # venv named p311, prompt "(mongodb)"
+python3.11 -m venv p311 --prompt psmdb   # venv named p311, prompt "(psmdb)"
 
 # Activate the venv
 source ~/p311/bin/activate
 
-# Confirm the prompt shows: (mongodb) ... and python points to the venv
+# Confirm the prompt shows: (psmdb) ... and python points to the venv
 python --version   # expect 3.11.x
 
 # Core build utilities
@@ -244,6 +240,9 @@ c++ --version  # GCC 12+ is expected
       <pre><code># From the PSMDB source tree:
 cd ~/percona-server-mongodb
 
+# Pre-install specific wheels via PEP 517 (for smoother resolution)
+pip install --use-pep517 requests-oauth==0.4.1 regex==2021.11.10 cheetah3==3.2.6.post1 pykmip==0.10.0 sentinels==1.0.0 zope.interface==5.0.0
+
 # Install Python dependencies for the build (no project install)
 poetry install --no-root --sync
 </code></pre>
@@ -251,7 +250,7 @@ poetry install --no-root --sync
 
     <section>
       <h2>7) Build <code>mongod</code></h2>
-      <p>This is the long step. We will pass the AWS SDK include/lib paths, enable the “Pro” features, and use all CPU cores.</p>
+      <p>This is the long step. We will pass the AWS SDK include/lib paths, enable the Pro features, and use all CPU cores.</p>
       <pre><code># Still in ~/percona-server-mongodb (venv active, GCC toolset enabled)
 buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j"$(nproc --all)" --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" CXX="/opt/rh/gcc-toolset-12/root/usr/bin/c++" CC="/opt/rh/gcc-toolset-12/root/usr/bin/gcc" install-mongod
 </code></pre>
@@ -284,13 +283,12 @@ buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j"$
       <pre><code>DOCKER_PLATFORM=linux/amd64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/adamotonete/compile_psmdb_pro/refs/heads/main/script/build.sh)"</code></pre>
     </section>
 
+    
     <section>
-      <h2>Final word</h2>
-      <p>
-        If you want the polished Red Hat binary flow, reach out — there is a companion script and several quality-of-life tips.
-        If you go to production with these features, consider Percona support so you have experts on call.
-      </p>
+      <p><strong>LinkedIn:</strong> adamotonete</p>
+      <p class="small">Published: August 21, 2025</p>
     </section>
+
   </div>
 </body>
 </html>
