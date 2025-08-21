@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Test-Driving Percona Server for MongoDB “Pro” — DIY Build Guide</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --text: #e6edf3;
+      --muted: #a3b1c2;
+      --accent: #3fbf9a;
+      --border: #263246;
+      --code-bg: #0f1726;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+      background: linear-gradient(180deg, var(--bg), #0a1020 60%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 48px 20px 80px;
+    }
+    header.hero {
+      background: radial-gradient(100% 100% at 0% 0%, #12203a 0%, rgba(18,32,58,.25) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+    .kicker {
+      color: var(--accent);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 12px;
+      margin: 0 0 6px 0;
+    }
+    h1 {
+      font-size: 34px;
+      line-height: 1.15;
+      margin: 0 0 12px 0;
+    }
+    .lede {
+      color: var(--muted);
+      margin: 0;
+      font-size: 18px;
+    }
+    figure.hero {
+      margin: 18px 0 0 0;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    h2 {
+      font-size: 24px;
+      margin-top: 36px;
+      margin-bottom: 10px;
+    }
+    h3 {
+      font-size: 19px;
+      margin-top: 28px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    p, li {
+      color: var(--text);
+    }
+    .note {
+      border-left: 4px solid var(--accent);
+      background: rgba(63,191,154,0.08);
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: var(--text);
+    }
+    code, pre, kbd, samp {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      overflow: auto;
+      line-height: 1.5;
+      margin: 14px 0 24px;
+    }
+    pre code { color: inherit; }
+    .small {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    ul { padding-left: 20px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 32px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="kicker">Guide</div>
+      <h1>Test-Driving Percona Server for MongoDB “Pro” (FIPS, FCBIS, OIDC) — DIY Build Guide</h1>
+      <p class="lede">
+        Build Percona Server for MongoDB 8.0.12-4 from source inside an Oracle Linux 9 container, enabling FIPS, File-Copy-Based Initial Sync, and OpenID Connect.
+        These features are free to use if you compile from source; Percona’s production support is paid.
+      </p>
+      <figure class="hero">
+        <strong>Hero image placeholder.</strong> Replace with your blog header image.<br/>
+        <span class="small">Tip: Use a 1600×900 PNG/JPG and update the article template where appropriate.</span>
+      </figure>
+    </header>
+
+    <section>
+      <h2>What you’ll need</h2>
+      <ul>
+        <li>A recent, reasonably powerful machine (or a cloud VM)</li>
+        <li>Docker installed</li>
+        <li>About <strong>200 GB</strong> of free disk space (builds are sizable)</li>
+        <li>Some patience — compiling a database is not instant</li>
+      </ul>
+      <div class="note small">
+        We’ll do everything inside a container to keep your host clean. If you prefer a VM, the steps are the same.
+      </div>
+    </section>
+
+    <section>
+      <h2>0) Start/attach to an Oracle Linux 9 container</h2>
+      <p>How to create the container is up to you; as long as the container is running, we can continue. Installing and configuring Docker is outside the scope of this article.</p>
+      <p>If you already have Docker running and want to create a simple container, execute the following commands to start a container and enter it, then proceed with the next steps:</p>
+      <pre><code>docker run -dt --name psmdb oraclelinux:9
+docker exec -it psmdb bash</code></pre>
+      <p>Any other method you have (using a UI or other tools) will work. The important part is to be inside the container.</p>
+    </section>
+
+    <section>
+      <h2>1) Install build dependencies</h2>
+      <pre><code># Update metadata and install toolchains, libraries, and Python 3.11
+# (yum on OL9 is a wrapper for dnf; either works)
+yum install -y gcc-toolset-12 cmake curl git binutils-devel openssl-devel openldap-devel krb5-devel libcurl-devel cyrus-sasl-devel bzip2-devel zlib-devel lz4-devel xz-devel e2fsprogs-devel python3.11 python3.11-devel python3.11-pip python3.11-setuptools python3.11-wheel gcc gcc-c++
+</code></pre>
+
+      <p><strong>Check key tool locations:</strong></p>
+      <pre><code># Where the newer toolchain lives (we will source this later for GCC 12+)
+echo "/opt/rh/gcc-toolset-12/root/usr/bin"
+
+# Confirm Python 3.11 is present
+python3.11 --version     # should print Python 3.11.x
+</code></pre>
+    </section>
+
+    <section>
+      <h2>2) Build a minimal static AWS SDK (S3/transfer only)</h2>
+      <p>WiredTiger’s S3 integration needs the AWS SDK. We’ll build a small, static set to speed up linking and keep the footprint lean.</p>
+      <pre><code># Work from the root home directory for simplicity
+cd ~  # go to /root
+
+# Clone aws-sdk-cpp with submodules
+git clone --recurse-submodules https://github.com/aws/aws-sdk-cpp.git
+
+# Choose a known-good tag (compact and stable for this flow)
+cd aws-sdk-cpp && git checkout 1.9.379
+
+# Prepare install prefix for the built libraries
+mkdir -p /tmp/lib/aws
+export AWS_LIBS=/tmp/lib/aws
+
+# Configure a minimal static build for s3 + transfer (single line for easy copy/paste)
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_ONLY="s3;transfer" -DBUILD_SHARED_LIBS=OFF -DMINIMIZE_SIZE=ON -DCMAKE_INSTALL_PREFIX="${AWS_LIBS}"
+# Build & install into $AWS_LIBS
+# Note: If you prefer multi-line with backslashes, ensure the backslash is the final character on the line (no trailing spaces).
+make -j"$(nproc --all)" install
+</code></pre>
+    </section>
+
+    <section>
+      <h2>3) Get Percona Server for MongoDB source</h2>
+      <pre><code># Back to home
+cd ~
+
+# Clone PSMDB
+git clone https://github.com/percona/percona-server-mongodb.git
+
+# Use the 8.0.12-4 release branch (current target of this guide)
+cd percona-server-mongodb && git checkout origin/release-8.0.12-4
+
+# Write the version file explicitly (helps the build metadata)
+echo '{"version": "8.0.12-4"}' > version.json
+</code></pre>
+    </section>
+
+    <section>
+      <h2>4) Create and prepare a Python 3.11 virtualenv</h2>
+      <p>Poetry, scons, and related tooling live best in a clean venv.</p>
+      <pre><code># Create a dedicated venv folder (name it anything you like)
+cd ~
+python3.11 -m venv p311 --prompt mongodb   # venv named p311, prompt "(mongodb)"
+
+# Activate the venv
+source ~/p311/bin/activate
+
+# Confirm the prompt shows: (mongodb) ... and python points to the venv
+python --version   # expect 3.11.x
+
+# Core build utilities
+pip install -U pip
+pip install importlib-metadata setuptools wheel build pyproject-hooks
+
+# Poetry + export plugin (versions known to behave well here)
+pip install "poetry==2.0.0" "poetry-plugin-export>=1.8"
+
+# Helper used by the build (demangling)
+pip install cxxfilt
+</code></pre>
+    </section>
+
+    <section>
+      <h2>5) Enable the newer GCC toolchain for this shell</h2>
+      <pre><code># Switch this shell to GCC from gcc-toolset-12
+# (You need to do this in every new shell you use for the build)
+source /opt/rh/gcc-toolset-12/enable
+
+# Sanity check: the C++ compiler should now be the toolset one
+which c++      # expect /opt/rh/gcc-toolset-12/root/usr/bin/c++
+c++ --version  # GCC 12+ is expected
+</code></pre>
+    </section>
+
+    <section>
+      <h2>6) Resolve Python deps with Poetry</h2>
+      <pre><code># From the PSMDB source tree:
+cd ~/percona-server-mongodb
+
+# Install Python dependencies for the build (no project install)
+poetry install --no-root --sync
+</code></pre>
+    </section>
+
+    <section>
+      <h2>7) Build <code>mongod</code></h2>
+      <p>This is the long step. We will pass the AWS SDK include/lib paths, enable the “Pro” features, and use all CPU cores.</p>
+      <pre><code># Still in ~/percona-server-mongodb (venv active, GCC toolset enabled)
+buildscripts/scons.py --disable-warnings-as-errors --release --ssl --opt=on -j"$(nproc --all)" --use-sasl-client --wiredtiger --audit --inmemory --hotbackup --full-featured CPPPATH="${AWS_LIBS}/include" LIBPATH="${AWS_LIBS}/lib ${AWS_LIBS}/lib64" CXX="/opt/rh/gcc-toolset-12/root/usr/bin/c++" CC="/opt/rh/gcc-toolset-12/root/usr/bin/gcc" install-mongod
+</code></pre>
+      <p>When it completes, your binaries are staged under <code>build/install/bin/</code> (for example, <code>./build/install/bin/mongod</code>).</p>
+    </section>
+
+    <hr/>
+
+    <section>
+      <h2>Why do all this?</h2>
+      <ul>
+        <li><strong>Use the Pro features for free</strong> (FIPS, FCBIS, OIDC) by building from source.</li>
+        <li><strong>Production support is paid</strong> via Percona. If you want SLAs, get the contract.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Notes and gotchas</h2>
+      <ul>
+        <li>This walkthrough targets <strong>8.0.12-4</strong>. Other versions may need tweaks.</li>
+        <li>If you open a fresh shell, re-activate the venv and re-enable <code>gcc-toolset-12</code> before continuing.</li>
+        <li>Build times depend on CPU cores and I/O.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>One-command builder (optional and convenient)</h2>
+      <p>If you prefer a one-liner that produces Red Hat–style builds, use the script below.
+      Please read any <code>.sh</code> before you run it.</p>
+      <pre><code>DOCKER_PLATFORM=linux/amd64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/adamotonete/compile_psmdb_pro/refs/heads/main/script/build.sh)"</code></pre>
+    </section>
+
+    <section>
+      <h2>Final word</h2>
+      <p>
+        If you want the polished Red Hat binary flow, reach out — there is a companion script and several quality-of-life tips.
+        If you go to production with these features, consider Percona support so you have experts on call.
+      </p>
+    </section>
+  </div>
+</body>
+</html>
